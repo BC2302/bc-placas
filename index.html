@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BC Produções – Editor de Placas</title>
+<meta name="robots" content="noindex">
+<style>
+@font-face{font-family:"Montserrat";font-weight:800;src:url(fonts/montserrat-800.woff2) format("woff2")}
+@font-face{font-family:"Montserrat";font-weight:900;src:url(fonts/montserrat-900.woff2) format("woff2")}
+:root{
+  --vermelho:#d7141e;
+  --vinho:#8f0d14;
+  --amarelo:#ffd200;
+  --tinta:#1f1f1f;
+  --painel:#f4f1ee;
+  --verde:#1d7a3a;
+  --fonte:"Montserrat","Arial Black",Arial,sans-serif;
+  /* layout: telas de entrada centralizadas; depois do login, barra fina no topo e o editor embaixo */
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--painel);color:var(--tinta);font-family:var(--fonte)}
+.oculto{display:none!important}
+.tela{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.cartao{width:100%;max-width:400px;background:#fff;border-radius:16px;padding:28px 24px;box-shadow:0 10px 30px rgba(0,0,0,.10);display:flex;flex-direction:column;gap:14px}
+.selo-bc{align-self:flex-start;background:var(--tinta);color:var(--amarelo);font-weight:900;font-size:16px;letter-spacing:1px;padding:6px 14px;border-radius:8px}
+.cartao h1{margin:0;font-size:24px;font-weight:900;color:var(--vinho);text-wrap:balance}
+.cartao p{margin:0;font:15px/1.45 Arial,sans-serif;color:#555}
+.campo{display:flex;flex-direction:column;gap:5px}
+.campo label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#444}
+.campo input,.campo select{font:16px Arial,sans-serif;padding:11px 12px;border:2px solid #d9d2cc;border-radius:8px;background:#fff;color:var(--tinta);width:100%}
+.campo input:focus,.campo select:focus{outline:none;border-color:var(--vermelho)}
+.btn{font:800 15px var(--fonte);padding:12px 20px;border-radius:10px;border:0;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn.principal{background:var(--vermelho);color:#fff}
+.btn.secundario{background:#fff;color:var(--vinho);border:2px solid var(--vinho)}
+.btn.claro{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.5);padding:7px 14px;font-size:13px}
+.btn.mini{padding:6px 10px;font-size:12px;border-radius:7px}
+.btn:focus-visible{outline:3px solid var(--amarelo);outline-offset:2px}
+.msg{font:700 14px Arial,sans-serif;color:var(--vinho);min-height:18px}
+.msg.ok{color:var(--verde)}
+.dica{font:13px Arial,sans-serif;color:#777}
+
+.barra{position:sticky;top:0;z-index:40;background:var(--tinta);color:#fff;display:flex;align-items:center;gap:12px;padding:8px 16px;flex-wrap:wrap}
+.barra .selo-bc{background:var(--amarelo);color:var(--tinta);font-size:13px;padding:4px 10px}
+.barra .ola{font:600 14px Arial,sans-serif;flex:1;min-width:120px;color:#ddd}
+.barra .ola b{color:#fff}
+.carregando{font:700 16px Arial,sans-serif;color:#666}
+
+/* painel de usuários */
+.fundo-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px}
+.modal{width:100%;max-width:960px;background:#fff;border-radius:16px;padding:22px 20px;display:flex;flex-direction:column;gap:18px}
+.modal-topo{display:flex;align-items:center;gap:12px}
+.modal-topo h2{margin:0;flex:1;font-size:22px;font-weight:900;color:var(--vinho)}
+.novo{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;align-items:end;background:var(--painel);border-radius:12px;padding:14px}
+.novo h3{grid-column:1/-1;margin:0;font-size:15px;font-weight:900}
+.tabela-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font:14px Arial,sans-serif}
+th{text-align:left;font:800 11px var(--fonte);text-transform:uppercase;letter-spacing:.5px;color:#666;padding:8px;border-bottom:2px solid #eee;white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid #f0ebe6;vertical-align:middle}
+td .acoes{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;font:800 11px var(--fonte);text-transform:uppercase;letter-spacing:.5px}
+.pill.ativo{background:#e3f4e8;color:var(--verde)}
+.pill.inativo{background:#fbe4e5;color:var(--vinho)}
+.pill.admin{background:#fff3c2;color:#7a5b00}
+.pill.usuario{background:#eee;color:#555}
+.voce{font:700 11px Arial,sans-serif;color:#999}
+@media print{.barra,.fundo-modal,.tela{display:none!important}}
+</style>
+</head>
+<body>
+
+<!-- carregando -->
+<section class="tela" id="t-carregando"><p class="carregando">Carregando…</p></section>
+
+<!-- login -->
+<section class="tela oculto" id="t-login">
+  <form class="cartao" id="f-login" autocomplete="on">
+    <span class="selo-bc">BC PRODUÇÕES</span>
+    <h1>Editor de Placas</h1>
+    <p>Entre com o e-mail e a senha que o administrador cadastrou para você.</p>
+    <div class="campo"><label for="l-email">E-mail</label><input id="l-email" type="email" autocomplete="username" required></div>
+    <div class="campo"><label for="l-senha">Senha</label><input id="l-senha" type="password" autocomplete="current-password" required></div>
+    <button class="btn principal" id="l-botao" type="submit">Entrar</button>
+    <div class="msg" id="l-msg" role="status"></div>
+    <span class="dica">Esqueceu a senha? Peça para o administrador trocar.</span>
+  </form>
+</section>
+
+<!-- primeiro acesso: cria o administrador -->
+<section class="tela oculto" id="t-setup">
+  <form class="cartao" id="f-setup">
+    <span class="selo-bc">BC PRODUÇÕES</span>
+    <h1>Primeiro acesso</h1>
+    <p>Crie a conta do administrador. É ela que vai cadastrar e liberar as outras pessoas.</p>
+    <div class="campo"><label for="s-nome">Seu nome</label><input id="s-nome" required></div>
+    <div class="campo"><label for="s-email">E-mail</label><input id="s-email" type="email" autocomplete="username" required></div>
+    <div class="campo"><label for="s-senha">Senha (mínimo 6 caracteres)</label><input id="s-senha" type="password" autocomplete="new-password" minlength="6" required></div>
+    <div class="campo"><label for="s-senha2">Repita a senha</label><input id="s-senha2" type="password" autocomplete="new-password" minlength="6" required></div>
+    <button class="btn principal" id="s-botao" type="submit">Criar administrador</button>
+    <div class="msg" id="s-msg" role="status"></div>
+  </form>
+</section>
+
+<!-- conta desativada -->
+<section class="tela oculto" id="t-bloqueado">
+  <div class="cartao">
+    <span class="selo-bc">BC PRODUÇÕES</span>
+    <h1>Acesso não liberado</h1>
+    <p id="b-msg">Sua conta está desativada. Fale com o administrador.</p>
+    <button class="btn secundario" type="button" data-sair>Sair</button>
+  </div>
+</section>
+
+<!-- depois do login -->
+<header class="barra oculto" id="barra">
+  <span class="selo-bc">BC PRODUÇÕES</span>
+  <span class="ola">Olá, <b id="u-nome"></b></span>
+  <button class="btn claro oculto" id="b-usuarios" type="button">Usuários</button>
+  <button class="btn claro" type="button" data-sair>Sair</button>
+</header>
+<div id="app"></div>
+
+<!-- painel de usuários (só administrador) -->
+<div class="fundo-modal oculto" id="m-usuarios" role="dialog" aria-modal="true" aria-labelledby="m-titulo">
+  <div class="modal">
+    <div class="modal-topo">
+      <h2 id="m-titulo">Usuários</h2>
+      <button class="btn secundario mini" id="m-fechar" type="button">Fechar</button>
+    </div>
+    <form class="novo" id="f-novo">
+      <h3>Cadastrar nova pessoa</h3>
+      <div class="campo"><label for="n-nome">Nome</label><input id="n-nome" required></div>
+      <div class="campo"><label for="n-email">E-mail</label><input id="n-email" type="email" required></div>
+      <div class="campo"><label for="n-senha">Senha</label><input id="n-senha" type="text" minlength="6" required></div>
+      <div class="campo"><label for="n-papel">Tipo</label>
+        <select id="n-papel"><option value="usuario">Usuário (só usa o editor)</option><option value="admin">Administrador</option></select></div>
+      <button class="btn principal" id="n-botao" type="submit">Cadastrar</button>
+      <div class="msg" id="n-msg" role="status" style="grid-column:1/-1"></div>
+    </form>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>E-mail</th><th>Tipo</th><th>Situação</th><th>Último acesso</th><th>Ações</th></tr></thead>
+        <tbody id="lista"><tr><td colspan="6">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="libs/supabase.js"></script>
+<script>
+(function(){
+  const SUPA_URL='https://nzbbfctagiezjqrozhbl.supabase.co';
+  const SUPA_KEY='sb_publishable_wMvcOu9ZAKeJJOkdH1Bj4A_JbWL0fKG';
+  const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
+  const $=id=>document.getElementById(id);
+  let sessao=null, editorCarregado=false;
+
+  function mostrar(id){
+    ['t-carregando','t-login','t-setup','t-bloqueado'].forEach(t=>$(t).classList.toggle('oculto',t!==id));
+  }
+  async function chamar(nome,corpo,comLogin){
+    const h={'Content-Type':'application/json','apikey':SUPA_KEY};
+    if(comLogin&&sessao) h.Authorization='Bearer '+sessao.access_token;
+    try{
+      const r=await fetch(SUPA_URL+'/functions/v1/'+nome,{method:'POST',headers:h,body:JSON.stringify(corpo||{})});
+      const d=await r.json().catch(()=>({}));
+      return Object.assign({status:r.status},d);
+    }catch(e){ return {status:0,erro:'Sem conexão com a internet. Tente de novo.'}; }
+  }
+
+  // ---------- abre o editor (só com a chave que o servidor entrega) ----------
+  async function abrirEditor(chaveB64){
+    const r=await fetch('editor.enc',{cache:'no-cache'});
+    const bruto=Uint8Array.from(atob((await r.text()).trim()),c=>c.charCodeAt(0));
+    const chave=await crypto.subtle.importKey('raw',Uint8Array.from(atob(chaveB64),c=>c.charCodeAt(0)),'AES-GCM',false,['decrypt']);
+    const texto=await crypto.subtle.decrypt({name:'AES-GCM',iv:bruto.slice(0,12)},chave,bruto.slice(12));
+    const ed=JSON.parse(new TextDecoder().decode(texto));
+    const st=document.createElement('style'); st.textContent=ed.css; document.head.appendChild(st);
+    $('app').innerHTML=ed.html;
+    const sc=document.createElement('script'); sc.textContent=ed.js; document.body.appendChild(sc);
+    editorCarregado=true;
+  }
+
+  async function entrar(){
+    mostrar('t-carregando');
+    const r=await chamar('placas-acesso',{},true);
+    if(r.status===401){ await sb.auth.signOut(); return telaInicial(); }
+    if(r.status===403){ $('b-msg').textContent=r.erro||'Sua conta está desativada.'; return mostrar('t-bloqueado'); }
+    if(!r.chave){ $('b-msg').textContent=r.erro||'Não consegui abrir o editor. Tente de novo.'; return mostrar('t-bloqueado'); }
+    $('u-nome').textContent=r.nome||r.email||'';
+    $('b-usuarios').classList.toggle('oculto',r.papel!=='admin');
+    try{ if(!editorCarregado) await abrirEditor(r.chave); }
+    catch(e){ $('b-msg').textContent='Não consegui abrir o editor. Recarregue a página.'; return mostrar('t-bloqueado'); }
+    ['t-carregando','t-login','t-setup','t-bloqueado'].forEach(t=>$(t).classList.add('oculto'));
+    $('barra').classList.remove('oculto');
+  }
+
+  async function telaInicial(){
+    $('barra').classList.add('oculto');
+    const st=await chamar('placas-admin',{acao:'status'});
+    mostrar(st.temAdmin===false?'t-setup':'t-login');
+  }
+
+  // ---------- login ----------
+  $('f-login').addEventListener('submit',async e=>{
+    e.preventDefault(); const b=$('l-botao'); b.disabled=true; $('l-msg').textContent='';
+    const {data,error}=await sb.auth.signInWithPassword({email:$('l-email').value.trim(),password:$('l-senha').value});
+    b.disabled=false;
+    if(error){ $('l-msg').textContent=/invalid/i.test(error.message)?'E-mail ou senha errados.':'Não consegui entrar: '+error.message; return; }
+    sessao=data.session; $('l-senha').value=''; entrar();
+  });
+
+  // ---------- primeiro administrador ----------
+  $('f-setup').addEventListener('submit',async e=>{
+    e.preventDefault(); $('s-msg').textContent='';
+    if($('s-senha').value!==$('s-senha2').value){ $('s-msg').textContent='As senhas não são iguais.'; return; }
+    const b=$('s-botao'); b.disabled=true;
+    const email=$('s-email').value.trim(), senha=$('s-senha').value;
+    const r=await chamar('placas-admin',{acao:'setup',nome:$('s-nome').value.trim(),email,senha});
+    if(!r.ok){ b.disabled=false; $('s-msg').textContent=r.erro||'Não consegui criar.'; return; }
+    const {data,error}=await sb.auth.signInWithPassword({email,password:senha});
+    b.disabled=false;
+    if(error){ mostrar('t-login'); return; }
+    sessao=data.session; entrar();
+  });
+
+  // ---------- sair ----------
+  document.querySelectorAll('[data-sair]').forEach(b=>b.addEventListener('click',async()=>{
+    await sb.auth.signOut(); location.reload();
+  }));
+
+  // ---------- painel de usuários ----------
+  const fmtData=d=>d?new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nunca entrou';
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  async function listar(){
+    const r=await chamar('placas-admin',{acao:'listar'},true);
+    if(!r.usuarios){ $('lista').innerHTML='<tr><td colspan="6">'+esc(r.erro||'Erro ao carregar.')+'</td></tr>'; return; }
+    $('lista').innerHTML=r.usuarios.map(u=>{
+      const eu=u.id===r.eu;
+      return `<tr data-id="${u.id}">
+        <td>${esc(u.nome)||'—'} ${eu?'<span class="voce">(você)</span>':''}</td>
+        <td>${esc(u.email)}</td>
+        <td><span class="pill ${u.papel}">${u.papel==='admin'?'Admin':'Usuário'}</span></td>
+        <td><span class="pill ${u.ativo?'ativo':'inativo'}">${u.ativo?'Liberado':'Bloqueado'}</span></td>
+        <td>${fmtData(u.ultimo_acesso)}</td>
+        <td><div class="acoes">${eu?'<button class="btn secundario mini" data-acao="senha">Trocar senha</button>':`
+          <button class="btn ${u.ativo?'secundario':'principal'} mini" data-acao="ativo" data-valor="${u.ativo?0:1}">${u.ativo?'Bloquear':'Liberar'}</button>
+          <button class="btn secundario mini" data-acao="senha">Trocar senha</button>
+          <button class="btn secundario mini" data-acao="papel" data-valor="${u.papel==='admin'?'usuario':'admin'}">${u.papel==='admin'?'Tornar usuário':'Tornar admin'}</button>
+          <button class="btn secundario mini" data-acao="excluir">Excluir</button>`}</div></td></tr>`;
+    }).join('');
+  }
+  $('lista').addEventListener('click',async e=>{
+    const b=e.target.closest('button[data-acao]'); if(!b) return;
+    const id=b.closest('tr').dataset.id, acao=b.dataset.acao, corpo={acao,id};
+    if(acao==='ativo') corpo.ativo=b.dataset.valor==='1';
+    if(acao==='papel') corpo.papel=b.dataset.valor;
+    if(acao==='senha'){ const s=prompt('Digite a nova senha (mínimo 6 caracteres):'); if(!s) return; corpo.senha=s; }
+    if(acao==='excluir' && !confirm('Excluir esta pessoa? Ela não vai mais conseguir entrar.')) return;
+    b.disabled=true;
+    const r=await chamar('placas-admin',corpo,true);
+    if(!r.ok) alert(r.erro||'Não deu certo.');
+    else if(acao==='senha') alert('Senha trocada.');
+    listar();
+  });
+  $('f-novo').addEventListener('submit',async e=>{
+    e.preventDefault(); const b=$('n-botao'); b.disabled=true; $('n-msg').className='msg'; $('n-msg').textContent='';
+    const r=await chamar('placas-admin',{acao:'criar',nome:$('n-nome').value.trim(),email:$('n-email').value.trim(),senha:$('n-senha').value,papel:$('n-papel').value},true);
+    b.disabled=false;
+    if(!r.ok){ $('n-msg').textContent=r.erro||'Não consegui cadastrar.'; return; }
+    $('n-msg').className='msg ok'; $('n-msg').textContent='Cadastrado. Passe o e-mail e a senha para a pessoa.';
+    $('f-novo').reset(); listar();
+  });
+  $('b-usuarios').addEventListener('click',()=>{ $('m-usuarios').classList.remove('oculto'); listar(); });
+  $('m-fechar').addEventListener('click',()=>$('m-usuarios').classList.add('oculto'));
+  $('m-usuarios').addEventListener('click',e=>{ if(e.target.id==='m-usuarios') $('m-usuarios').classList.add('oculto'); });
+
+  // ---------- início ----------
+  sb.auth.onAuthStateChange((_ev,s)=>{ sessao=s; });
+  sb.auth.getSession().then(({data})=>{
+    sessao=data.session;
+    if(sessao) entrar(); else telaInicial();
+  });
+})();
+</script>
+</body>
+</html>
