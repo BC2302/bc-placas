@@ -65,6 +65,17 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
 .pill.admin{background:#fff3c2;color:#7a5b00}
 .pill.usuario{background:#eee;color:#555}
 .voce{font:700 11px Arial,sans-serif;color:#999}
+.pill.pendente{background:#fff3c2;color:#7a5b00}
+.link{background:none;border:0;padding:0;font:700 14px Arial,sans-serif;color:var(--vinho);text-decoration:underline;cursor:pointer;align-self:flex-start}
+.contador{display:inline-block;min-width:20px;padding:1px 6px;margin-left:6px;border-radius:99px;background:var(--amarelo);color:var(--tinta);font:900 12px var(--fonte);text-align:center}
+.pendentes{border:2px solid var(--amarelo);background:#fffbe6;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.pendentes h3{margin:0;font-size:15px;font-weight:900;color:#7a5b00}
+.pend-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border-radius:10px;padding:10px 12px}
+.pend-item .quem{flex:1;min-width:180px;font:14px Arial,sans-serif}
+.pend-item .quem b{display:block;font-size:15px}
+.pend-item .quem span{color:#666}
+.pend-item .acoes{display:flex;gap:6px}
+.btn.verde{background:var(--verde);color:#fff}
 @media print{.barra,.fundo-modal,.tela{display:none!important}}
 </style>
 </head>
@@ -84,7 +95,34 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
     <button class="btn principal" id="l-botao" type="submit">Entrar</button>
     <div class="msg" id="l-msg" role="status"></div>
     <span class="dica">Esqueceu a senha? Peça para o administrador trocar.</span>
+    <button class="link" type="button" id="ir-cadastro">Não tem conta? Pedir cadastro</button>
   </form>
+</section>
+
+<!-- pedido de cadastro (fica aguardando aprovação) -->
+<section class="tela oculto" id="t-cadastro">
+  <form class="cartao" id="f-cadastro">
+    <span class="selo-bc">BC PRODUÇÕES</span>
+    <h1>Pedir cadastro</h1>
+    <p>Preencha seus dados. Você só vai conseguir entrar depois que o administrador aprovar o seu cadastro.</p>
+    <div class="campo"><label for="c-nome">Seu nome</label><input id="c-nome" autocomplete="name" required></div>
+    <div class="campo"><label for="c-email">E-mail</label><input id="c-email" type="email" autocomplete="username" required></div>
+    <div class="campo"><label for="c-senha">Crie uma senha (mínimo 6 caracteres)</label><input id="c-senha" type="password" autocomplete="new-password" minlength="6" required></div>
+    <div class="campo"><label for="c-senha2">Repita a senha</label><input id="c-senha2" type="password" autocomplete="new-password" minlength="6" required></div>
+    <button class="btn principal" id="c-botao" type="submit">Enviar cadastro</button>
+    <div class="msg" id="c-msg" role="status"></div>
+    <button class="link" type="button" id="voltar-login">Já tenho conta. Entrar</button>
+  </form>
+</section>
+
+<!-- cadastro enviado -->
+<section class="tela oculto" id="t-enviado">
+  <div class="cartao">
+    <span class="selo-bc">BC PRODUÇÕES</span>
+    <h1>Cadastro enviado!</h1>
+    <p>Agora é só aguardar o administrador aprovar. Depois da aprovação, entre com o e-mail e a senha que você criou.</p>
+    <button class="btn secundario" type="button" id="enviado-ok">Voltar para a entrada</button>
+  </div>
 </section>
 
 <!-- primeiro acesso: cria o administrador -->
@@ -106,7 +144,7 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
 <section class="tela oculto" id="t-bloqueado">
   <div class="cartao">
     <span class="selo-bc">BC PRODUÇÕES</span>
-    <h1>Acesso não liberado</h1>
+    <h1 id="b-titulo">Acesso não liberado</h1>
     <p id="b-msg">Sua conta está desativada. Fale com o administrador.</p>
     <button class="btn secundario" type="button" data-sair>Sair</button>
   </div>
@@ -116,7 +154,7 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
 <header class="barra oculto" id="barra">
   <span class="selo-bc">BC PRODUÇÕES</span>
   <span class="ola">Olá, <b id="u-nome"></b></span>
-  <button class="btn claro oculto" id="b-usuarios" type="button">Usuários</button>
+  <button class="btn claro oculto" id="b-usuarios" type="button">Usuários<span class="contador oculto" id="b-contador"></span></button>
   <button class="btn claro" type="button" data-sair>Sair</button>
 </header>
 <div id="app"></div>
@@ -127,6 +165,10 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
     <div class="modal-topo">
       <h2 id="m-titulo">Usuários</h2>
       <button class="btn secundario mini" id="m-fechar" type="button">Fechar</button>
+    </div>
+    <div class="pendentes oculto" id="pendentes">
+      <h3 id="pend-titulo">Aguardando sua aprovação</h3>
+      <div id="pend-lista"></div>
     </div>
     <form class="novo" id="f-novo">
       <h3>Cadastrar nova pessoa</h3>
@@ -156,8 +198,9 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
   const $=id=>document.getElementById(id);
   let sessao=null, editorCarregado=false;
 
+  const TELAS=['t-carregando','t-login','t-setup','t-bloqueado','t-cadastro','t-enviado'];
   function mostrar(id){
-    ['t-carregando','t-login','t-setup','t-bloqueado'].forEach(t=>$(t).classList.toggle('oculto',t!==id));
+    TELAS.forEach(t=>$(t).classList.toggle('oculto',t!==id));
   }
   async function chamar(nome,corpo,comLogin){
     const h={'Content-Type':'application/json','apikey':SUPA_KEY};
@@ -186,13 +229,16 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
     mostrar('t-carregando');
     const r=await chamar('placas-acesso',{},true);
     if(r.status===401){ await sb.auth.signOut(); return telaInicial(); }
-    if(r.status===403){ $('b-msg').textContent=r.erro||'Sua conta está desativada.'; return mostrar('t-bloqueado'); }
+    if(r.status===403){
+      $('b-titulo').textContent=r.situacao==='pendente'?'Aguardando aprovação':'Acesso não liberado';
+      $('b-msg').textContent=r.erro||'Sua conta está desativada.'; return mostrar('t-bloqueado'); }
     if(!r.chave){ $('b-msg').textContent=r.erro||'Não consegui abrir o editor. Tente de novo.'; return mostrar('t-bloqueado'); }
     $('u-nome').textContent=r.nome||r.email||'';
     $('b-usuarios').classList.toggle('oculto',r.papel!=='admin');
+    mostrarContador(r.pendentes||0);
     try{ if(!editorCarregado) await abrirEditor(r.chave); }
     catch(e){ $('b-msg').textContent='Não consegui abrir o editor. Recarregue a página.'; return mostrar('t-bloqueado'); }
-    ['t-carregando','t-login','t-setup','t-bloqueado'].forEach(t=>$(t).classList.add('oculto'));
+    TELAS.forEach(t=>$(t).classList.add('oculto'));
     $('barra').classList.remove('oculto');
   }
 
@@ -225,6 +271,20 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
     sessao=data.session; entrar();
   });
 
+  // ---------- pedido de cadastro ----------
+  $('ir-cadastro').addEventListener('click',()=>{ $('c-msg').textContent=''; mostrar('t-cadastro'); $('c-nome').focus(); });
+  $('voltar-login').addEventListener('click',()=>mostrar('t-login'));
+  $('enviado-ok').addEventListener('click',()=>mostrar('t-login'));
+  $('f-cadastro').addEventListener('submit',async e=>{
+    e.preventDefault(); $('c-msg').textContent='';
+    if($('c-senha').value!==$('c-senha2').value){ $('c-msg').textContent='As senhas não são iguais.'; return; }
+    const b=$('c-botao'); b.disabled=true;
+    const r=await chamar('placas-admin',{acao:'cadastrar',nome:$('c-nome').value.trim(),email:$('c-email').value.trim(),senha:$('c-senha').value});
+    b.disabled=false;
+    if(!r.ok){ $('c-msg').textContent=r.erro||'Não consegui enviar o cadastro.'; return; }
+    $('l-email').value=$('c-email').value.trim(); $('f-cadastro').reset(); mostrar('t-enviado');
+  });
+
   // ---------- sair ----------
   document.querySelectorAll('[data-sair]').forEach(b=>b.addEventListener('click',async()=>{
     await sb.auth.signOut(); location.reload();
@@ -236,7 +296,15 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
   async function listar(){
     const r=await chamar('placas-admin',{acao:'listar'},true);
     if(!r.usuarios){ $('lista').innerHTML='<tr><td colspan="6">'+esc(r.erro||'Erro ao carregar.')+'</td></tr>'; return; }
-    $('lista').innerHTML=r.usuarios.map(u=>{
+    const pend=r.usuarios.filter(u=>!u.ativo&&!u.aprovado_em), outros=r.usuarios.filter(u=>u.ativo||u.aprovado_em);
+    mostrarContador(pend.length);
+    $('pendentes').classList.toggle('oculto',!pend.length);
+    $('pend-titulo').textContent=pend.length===1?'1 cadastro aguardando sua aprovação':pend.length+' cadastros aguardando sua aprovação';
+    $('pend-lista').innerHTML=pend.map(u=>`<div class="pend-item" data-id="${u.id}">
+        <div class="quem"><b>${esc(u.nome)||'—'}</b><span>${esc(u.email)} · pediu em ${fmtData(u.criado_em)}</span></div>
+        <div class="acoes"><button class="btn verde mini" data-acao="aprovar">Aprovar</button>
+        <button class="btn secundario mini" data-acao="recusar">Recusar</button></div></div>`).join('');
+    $('lista').innerHTML=outros.map(u=>{
       const eu=u.id===r.eu;
       return `<tr data-id="${u.id}">
         <td>${esc(u.nome)||'—'} ${eu?'<span class="voce">(você)</span>':''}</td>
@@ -251,6 +319,17 @@ td .acoes{display:flex;gap:6px;flex-wrap:wrap}
           <button class="btn secundario mini" data-acao="excluir">Excluir</button>`}</div></td></tr>`;
     }).join('');
   }
+  function mostrarContador(n){ $('b-contador').textContent=n; $('b-contador').classList.toggle('oculto',!n);
+    $('b-usuarios').setAttribute('aria-label',n?'Usuários, '+n+' aguardando aprovação':'Usuários'); }
+  $('pend-lista').addEventListener('click',async e=>{
+    const b=e.target.closest('button[data-acao]'); if(!b) return;
+    const id=b.closest('.pend-item').dataset.id, acao=b.dataset.acao;
+    if(acao==='recusar' && !confirm('Recusar este cadastro? A conta será apagada.')) return;
+    b.disabled=true;
+    const r=await chamar('placas-admin',{acao,id},true);
+    if(!r.ok) alert(r.erro||'Não deu certo.');
+    listar();
+  });
   $('lista').addEventListener('click',async e=>{
     const b=e.target.closest('button[data-acao]'); if(!b) return;
     const id=b.closest('tr').dataset.id, acao=b.dataset.acao, corpo={acao,id};
